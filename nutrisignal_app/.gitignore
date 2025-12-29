@@ -6,6 +6,11 @@
 venv/
 backend/venv/
 
+# Environment variables
+.env
+backend/.env
+.env.local
+
 # Build artifacts
 ios/Pods/
 android/app/build/

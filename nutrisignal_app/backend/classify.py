@@ -5,10 +5,11 @@ from PIL import Image
 from tensorflow.keras.applications.mobilenet_v2 import (
     MobileNetV2, preprocess_input, decode_predictions
 )
+#from efficientnet_lite import EfficientNetLiteB0
 
 # Load once at startup (fast reload)
 model = MobileNetV2(weights="imagenet")
-
+#model = EfficientNetLiteB0(weights='imagenet')
 def classify_food(image_bytes: bytes) -> str:
     """Takes image bytes, returns top predicted food label"""
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB").resize((224, 224))

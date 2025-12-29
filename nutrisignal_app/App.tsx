@@ -62,7 +62,7 @@ export default function App() {
         <Text style={styles.text}>
           {result.error
             ? result.error
-            : `Label: ${result.label}\nSignal: ${result.nutrition.signal}`}
+            : `Label: ${result.label}\nSignal: ${result.signal}`}
         </Text>
       )}
     </ScrollView>

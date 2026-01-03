@@ -55,55 +55,45 @@ def get_nutrition_from_usda(food_label: str) -> dict | None:
         print(f"An unexpected error occurred: {e}")
         return None
 
-def get_health_signal(calories: float, sugar: float, fat: float, saturated_fat: float, sodium: float, fiber: float, protein: float) -> str:
-
+def get_health_signal(calories: float, sugar: float, fat: float, saturated_fat: float, sodium: float, fiber: float, protein: float) -> dict:
     ##2. Replace Traffic Light Logic with Scaled Score
     # score = 100
     # score -= sugar * 1.5
     # score -= sodium * 0.2
     # score += fiber * 2.0
     # score += protein * 1.0
-    #     signal_score = 0
-
-    #     Color code:
-    # 	•	🟢 Green: 70+
-    # 	•	🟡 Yellow: 40–69
-    # 	•	🔴 Red: <40
-    # cap at min 0, max 100
-
-    if calories > 700: signal_score += 2 # High calories
-    elif calories > 400: signal_score += 1 # Moderate calories
-
-    if sugar > 20: signal_score += 2 # High sugar
-    elif sugar > 10: signal_score += 1 # Moderate sugar
     
-    if fat > 20: signal_score += 2 # High fat
-    elif fat > 10: signal_score += 1 # Moderate fat
-
-    if saturated_fat > 7: signal_score += 2 # High saturated fat
-    elif saturated_fat > 3: signal_score += 1 # Moderate saturated fat
-
-    if sodium > 400: signal_score += 2 # High sodium
-    elif sodium > 200: signal_score += 1 # Moderate sodium
-
-    if fiber > 5: signal_score -= 1 # Good fiber
-
-    if protein > 10: signal_score -= 1 # Good protein
-
-    if signal_score >= 4:
-        return "Red"
-    elif signal_score >= 2:
-        return "Yellow"
+    score = 100
+    score -= sugar * 1.5
+    score -= fat * 0.5
+    score -= saturated_fat * 1.0
+    score -= sodium * 0.05
+    score += fiber * 2.0
+    score += protein * 1.0
+    
+    # Color code:
+    # 🟢 Green: 70+
+    # 🟡 Yellow: 40–69
+    # 🔴 Red: <40
+    # cap at min 0, max 100
+    score = max(0, min(100, score))
+    
+    if score >= 70:
+        signal = "Green"
+    elif score >= 40:
+        signal = "Yellow"
     else:
-        return "Green"
+        signal = "Red"
+    
+    return {"signal": signal, "score": score}
 
 def lookup_food(food_label: str) -> dict:
     nutrition = get_nutrition_from_usda(food_label)
     print(nutrition)
     if not nutrition:
-        return {"nutrition": None, "signal": None, "error": "Food not found in USDA database or API error."}
+        return {"nutrition": None, "signal": None, "score": None, "error": "Food not found in USDA database or API error."}
     
-    signal = get_health_signal(
+    health_result = get_health_signal(
         nutrition.get("calories", 0.0),
         nutrition.get("sugar", 0.0),
         nutrition.get("fat", 0.0),
@@ -112,5 +102,5 @@ def lookup_food(food_label: str) -> dict:
         nutrition.get("fiber", 0.0),
         nutrition.get("protein", 0.0)
     )
-    print(signal)
-    return {"nutrition": nutrition, "signal": signal}
+    print(health_result)
+    return {"nutrition": nutrition, "signal": health_result["signal"], "score": health_result["score"]}

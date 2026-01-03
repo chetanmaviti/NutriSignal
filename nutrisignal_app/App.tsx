@@ -10,13 +10,19 @@ export default function App() {
   // --- Take photo using device camera
   const takePhoto = async () => {
     const res = await launchCamera({ mediaType: 'photo', quality: 0.8 });
-    if (res.assets && res.assets[0]) setPhoto(res.assets[0]);
+    if (res.assets && res.assets[0]) {
+      setPhoto(res.assets[0]);
+      setResult(null);
+    }
   };
 
   // --- Pick photo from library (works on simulator)
   const chooseFromLibrary = async () => {
     const res = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
-    if (res.assets && res.assets[0]) setPhoto(res.assets[0]);
+    if (res.assets && res.assets[0]) {
+      setPhoto(res.assets[0]);
+      setResult(null);
+    }
   };
 
   // --- Send image to backend
@@ -59,11 +65,26 @@ export default function App() {
       </View>
 
       {result && (
-        <Text style={styles.text}>
-          {result.error
-            ? result.error
-            : `Label: ${result.label}\nSignal: ${result.signal}`}
-        </Text>
+        <View style={styles.resultContainer}>
+          {result.error ? (
+            <Text style={styles.errorText}>{result.error}</Text>
+          ) : (
+            <View style={styles.resultContent}>
+              {/* Left: Big Circle */}
+              <View style={styles.circleColumn}>
+                <Text style={styles.bigCircle}>
+                  {result.signal === "Green" ? "🟢" : result.signal === "Yellow" ? "🟡" : "🔴"}
+                </Text>
+              </View>
+
+              {/* Right: Label and Score */}
+              <View style={styles.infoColumn}>
+                <Text style={styles.label}>{result.label}</Text>
+                <Text style={styles.score}>{result.score.toFixed(2)} / 100</Text>
+              </View>
+            </View>
+          )}
+        </View>
       )}
     </ScrollView>
   );
@@ -95,6 +116,46 @@ const styles = StyleSheet.create({
   text: {
     marginTop: 10,
     fontSize: 18,
+    textAlign: 'center',
+  },
+  resultContainer: {
+    marginTop: 10,
+    paddingHorizontal: 20,
+    width: '100%',
+  },
+  resultContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 15,
+    padding: 15,
+  },
+  circleColumn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bigCircle: {
+    fontSize: 80,
+  },
+  infoColumn: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  label: {
+    fontSize: 22,
+    fontWeight: '600',
+    marginBottom: 8,
+    textTransform: 'capitalize',
+  },
+  score: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: '#666',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#d32f2f',
     textAlign: 'center',
   },
 });

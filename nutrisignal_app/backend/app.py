@@ -8,6 +8,7 @@ load_dotenv()
 
 app = FastAPI()
 
+
 @app.get("/")
 def root():
     return {"message": "NutriSignal backend is running 🚀"}
@@ -19,17 +20,36 @@ async def classify_image(file: UploadFile = File(...)):
     # Read image bytes
     image_bytes = await file.read()
     
-    # Step 1: Predict label
-    label = classify_food(image_bytes)
-    #print(f"Label from classify_food: '{label}' (type: {type(label)})")
-    print(label)
-    #WORK ON LABEL MAPPER
-    #label_mapper.py file scaffold with common fruits and fast food items
-    # Step 2: Lookup nutrition + signal
-    result = lookup_food(label)
-    #print(f"Result from lookup_food: {result}")
+    # Step 1: Get top 3 predicted labels
+    labels = classify_food(image_bytes)
+    print(f"Top 3 Predictions: {labels}")
     
-    return {"label": label, **result}
+    final_result = None
+    final_label = labels[0] # Default to the first one if everything fails
+    
+    # Step 2: Iterate to find valid food
+    for raw_label in labels:
+        # Clean label (MobileNet uses underscores)
+        clean_label = raw_label.replace("_", " ")
+        print(f"Checking USDA for: {clean_label}...")
+        
+        # Try to lookup
+        result = lookup_food(clean_label)
+        
+        # Check if we got valid nutrition back
+        if result and result.get("nutrition"):
+            final_result = result
+            final_label = clean_label
+            print(f"✅ Match found for: {clean_label}")
+            break
+        else:
+            print(f"❌ No data for: {clean_label}")
+
+    # If the loop finishes without finding anything, fallback to the top prediction's result
+    if not final_result:
+        final_result = lookup_food(labels[0].replace("_", " "))
+
+    return {"label": final_label, **final_result}
 
 @app.get("/test-api-key")
 def test_api_key():

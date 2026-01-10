@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { View, Button, Image, Text, StyleSheet, Platform, ScrollView } from 'react-native';
+import { View, Button, Image, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import axios from 'axios';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 
 export default function App() {
   const [photo, setPhoto] = useState<any>(null);
   const [result, setResult] = useState<any>(null);
+  const [expanded, setExpanded] = useState(false);
 
   // --- Take photo using device camera
   const takePhoto = async () => {
@@ -13,15 +14,17 @@ export default function App() {
     if (res.assets && res.assets[0]) {
       setPhoto(res.assets[0]);
       setResult(null);
+      setExpanded(false);
     }
   };
 
-  // --- Pick photo from library (works on simulator)
+  // --- Pick photo from library
   const chooseFromLibrary = async () => {
     const res = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
     if (res.assets && res.assets[0]) {
       setPhoto(res.assets[0]);
       setResult(null);
+      setExpanded(false);
     }
   };
 
@@ -43,24 +46,43 @@ export default function App() {
         { headers: { 'Content-Type': 'multipart/form-data' } }
       );
       setResult(response.data);
+      setExpanded(false);
     } catch (err) {
       console.error(err);
       setResult({ error: 'Could not connect to backend.' });
     }
   };
 
+  // UPDATED: Added .toFixed(2) logic here
+  const renderNutrient = (label: string, value: any, unit: string) => (
+    <View style={styles.nutrientRow}>
+      <Text style={styles.nutrientLabel}>{label}</Text>
+      <Text style={styles.nutrientValue}>
+        {value !== undefined && value !== null 
+          ? `${typeof value === 'number' ? value.toFixed(2) : value} ${unit}` 
+          : '-'}
+      </Text>
+    </View>
+  );
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>NutriSignal</Text>
+    <ScrollView 
+      contentContainerStyle={[
+        styles.container, 
+        photo && { paddingVertical: 15, justifyContent: 'flex-start' }
+      ]}
+    >
+      <Text style={[styles.title, photo && { marginBottom: 10, opacity: 0 }]}>NutriSignal</Text>
+      
       <View style={styles.buttonContainer}>
         <Button title="📸 Take Photo" onPress={takePhoto} />
-        <View style={{ height: 10 }} />
+        <View style={{ height: photo ? 5 : 10 }} />
         <Button title="🖼️ Choose from Gallery" onPress={chooseFromLibrary} />
       </View>
 
       {photo && <Image source={{ uri: photo.uri }} style={styles.image} />}
       
-      <View style={{ marginVertical: 20 }}>
+      <View style={{ marginVertical: photo ? 10 : 20 }}>
         <Button title="Classify" onPress={classifyPhoto} />
       </View>
 
@@ -69,19 +91,44 @@ export default function App() {
           {result.error ? (
             <Text style={styles.errorText}>{result.error}</Text>
           ) : (
-            <View style={styles.resultContent}>
-              {/* Left: Big Circle */}
-              <View style={styles.circleColumn}>
-                <Text style={styles.bigCircle}>
-                  {result.signal === "Green" ? "🟢" : result.signal === "Yellow" ? "🟡" : "🔴"}
-                </Text>
+            <View>
+              <View style={styles.resultContent}>
+                <View style={styles.circleColumn}>
+                  <Text style={styles.bigCircle}>
+                    {result.signal === "Green" ? "🟢" : result.signal === "Yellow" ? "🟡" : "🔴"}
+                  </Text>
+                </View>
+                <View style={styles.infoColumn}>
+                  <Text style={styles.label}>{result.label}</Text>
+                  <Text style={styles.score}>{result.score?.toFixed(1) ?? 0} / 100</Text>
+                </View>
               </View>
 
-              {/* Right: Label and Score */}
-              <View style={styles.infoColumn}>
-                <Text style={styles.label}>{result.label}</Text>
-                <Text style={styles.score}>{result.score.toFixed(2)} / 100</Text>
-              </View>
+              {result.nutrition && (
+                <View style={styles.nutrientContainer}>
+                  <TouchableOpacity 
+                    style={styles.accordionHeader} 
+                    onPress={() => setExpanded(!expanded)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.nutrientHeader}>Nutrition Facts (per 100g)</Text>
+                    <Text style={styles.arrow}>{expanded ? "▲" : "▼"}</Text>
+                  </TouchableOpacity>
+
+                  {expanded && (
+                    <View style={{ marginTop: 5 }}>
+                      {renderNutrient("Calories", result.nutrition.calories, "kcal")}
+                      {renderNutrient("Protein", result.nutrition.protein, "g")}
+                      {renderNutrient("Carbs", result.nutrition.carbohydrates, "g")} 
+                      {renderNutrient("Total Fat", result.nutrition.fat, "g")}
+                      {renderNutrient("Sat. Fat", result.nutrition.saturated_fat, "g")}
+                      {renderNutrient("Sugars", result.nutrition.sugar, "g")}
+                      {renderNutrient("Fiber", result.nutrition.fiber, "g")}
+                      {renderNutrient("Sodium", result.nutrition.sodium, "mg")}
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -107,19 +154,14 @@ const styles = StyleSheet.create({
     width: '80%',
   },
   image: {
-    width: 300,
-    height: 300,
-    marginVertical: 20,
+    width: '90%',
+    height: 425,
+    marginVertical: 10,
     borderRadius: 15,
     resizeMode: 'cover',
   },
-  text: {
-    marginTop: 10,
-    fontSize: 18,
-    textAlign: 'center',
-  },
   resultContainer: {
-    marginTop: 10,
+    marginTop: 0,
     paddingHorizontal: 20,
     width: '100%',
   },
@@ -130,6 +172,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
     borderRadius: 15,
     padding: 15,
+    marginBottom: 10,
   },
   circleColumn: {
     alignItems: 'center',
@@ -157,5 +200,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#d32f2f',
     textAlign: 'center',
+  },
+  nutrientContainer: {
+    backgroundColor: '#f9f9f9',
+    borderRadius: 15,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  accordionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  nutrientHeader: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+  },
+  arrow: {
+    fontSize: 18,
+    color: '#666',
+  },
+  nutrientRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  nutrientLabel: {
+    fontSize: 14,
+    color: '#555',
+  },
+  nutrientValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000',
   },
 });

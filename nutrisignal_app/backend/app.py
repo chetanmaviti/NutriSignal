@@ -7,13 +7,12 @@ from lookup import lookup_food
 load_dotenv()
 
 app = FastAPI()
-
+#why given color
+#time for classification
 
 @app.get("/")
 def root():
     return {"message": "NutriSignal backend is running 🚀"}
-#Frontend: Display Score and click for exact nutrients
-#show color instead of "green"
 
 @app.post("/classify")
 async def classify_image(file: UploadFile = File(...)):

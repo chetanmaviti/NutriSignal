@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+tensorflow-macos
+tensorflow-metal
+numpy
+pillow
+requests
+python-multipart
+python-dotenv

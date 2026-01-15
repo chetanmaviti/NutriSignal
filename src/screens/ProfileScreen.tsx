@@ -1,16 +1,40 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../context/AuthContext';
 
 export default function ProfileScreen() {
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Sign Out', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut();
+            } catch (error) {
+              Alert.alert('Error', 'Failed to sign out');
+            }
+          }
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.avatarContainer}>
           <Text style={styles.avatarText}>👤</Text>
         </View>
-        <Text style={styles.name}>Guest User</Text>
-        <Text style={styles.email}>Sign in to save your data</Text>
+        <Text style={styles.name}>{user?.displayName || 'User'}</Text>
+        <Text style={styles.email}>{user?.email || 'No email'}</Text>
       </View>
 
       <View style={styles.statsContainer}>
@@ -55,6 +79,11 @@ export default function ProfileScreen() {
           <Text style={styles.menuIcon}>ℹ️</Text>
           <Text style={styles.menuText}>About</Text>
           <Text style={styles.menuArrow}>›</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.signOutItem} onPress={handleSignOut}>
+          <Text style={styles.menuIcon}>🚪</Text>
+          <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
       </View>
 
@@ -146,5 +175,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 'auto',
     paddingBottom: 20,
+  },
+  signOutItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 15,
+    marginTop: 20,
+  },
+  signOutText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#FF3B30',
+    fontWeight: '500',
   },
 });

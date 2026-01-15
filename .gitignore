@@ -11,6 +11,12 @@ backend/venv/
 backend/.env
 .env.local
 
+# Firebase config files (contain API keys)
+**/GoogleService-Info.plist
+**/google-services.json
+firebase-service-account.json
+backend/firebase-service-account.json
+
 # Build artifacts
 ios/Pods/
 android/app/build/

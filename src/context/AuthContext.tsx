@@ -13,7 +13,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    const { data: { subscription } }: any = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+    const { data: { subscription } }: any = supabase.auth.onAuthStateChange((_, session: any) => {
       setUser(session?.user || null);
     });
 
@@ -29,13 +29,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
     
-    // Create user profile after successful signup
     if (data.user) {
       try {
         await createUserProfile(data.user.id, email);
-      } catch (profileError: any) {
-        // Silently fail - user can still sign in, profile might already exist
-        console.warn('Profile creation note:', profileError.message);
+      } catch (err: any) {
+        console.warn('Profile creation:', err.message);
       }
     }
   };

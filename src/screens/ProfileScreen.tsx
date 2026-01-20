@@ -16,11 +16,7 @@ export default function ProfileScreen() {
     try {
       setLoading(true);
       const data = await fetchScanStats();
-      if (data) {
-        setStats(data);
-      }
-    } catch (err) {
-      console.error('Error loading stats:', err);
+      if (data) setStats(data);
     } finally {
       setLoading(false);
     }

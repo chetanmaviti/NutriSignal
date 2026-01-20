@@ -11,7 +11,6 @@ export default function ScanScreen() {
   const [saving, setSaving] = useState(false);
   const { recordScan } = useAuth();
 
-  // --- Take photo using device camera
   const takePhoto = async () => {
     const res = await launchCamera({ mediaType: 'photo', quality: 0.8 });
     if (res.assets && res.assets[0]) {
@@ -21,7 +20,6 @@ export default function ScanScreen() {
     }
   };
 
-  // --- Pick photo from library
   const chooseFromLibrary = async () => {
     const res = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
     if (res.assets && res.assets[0]) {
@@ -31,32 +29,23 @@ export default function ScanScreen() {
     }
   };
 
-  // --- Send image to backend
   const classifyPhoto = async () => {
     if (!photo) return;
 
     const formData = new FormData();
-    formData.append('file', {
-      uri: photo.uri,
-      name: 'photo.jpg',
-      type: 'image/jpeg',
-    });
+    formData.append('file', { uri: photo.uri, name: 'photo.jpg', type: 'image/jpeg' });
 
     try {
-      const response = await axios.post(
-        'http://127.0.0.1:8000/classify',
-        formData,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
-      );
+      const response = await axios.post('http://127.0.0.1:8000/classify', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
       setResult(response.data);
       setExpanded(false);
     } catch (err) {
-      console.error(err);
       setResult({ error: 'Could not connect to backend.' });
     }
   };
 
-  // --- Save scan result to Supabase
   const saveScanResult = async () => {
     if (!result || result.error) {
       Alert.alert('Error', 'Cannot save invalid result');
@@ -65,19 +54,12 @@ export default function ScanScreen() {
 
     try {
       setSaving(true);
-      await recordScan(
-        result.label,
-        result.signal,
-        result.score,
-        result.nutrition
-      );
+      await recordScan(result.label, result.signal, result.score, result.nutrition);
       Alert.alert('Success', 'Scan saved to your history!');
-      // Reset after successful save
       setPhoto(null);
       setResult(null);
     } catch (err) {
-      console.error('Error saving scan:', err);
-      Alert.alert('Error', 'Failed to save scan. Please try again.');
+      Alert.alert('Error', 'Failed to save scan');
     } finally {
       setSaving(false);
     }
@@ -87,20 +69,13 @@ export default function ScanScreen() {
     <View style={styles.nutrientRow} key={label}>
       <Text style={styles.nutrientLabel}>{label}</Text>
       <Text style={styles.nutrientValue}>
-        {value !== undefined && value !== null 
-          ? `${typeof value === 'number' ? value.toFixed(2) : value} ${unit}` 
-          : '-'}
+        {value !== undefined && value !== null ? `${typeof value === 'number' ? value.toFixed(2) : value} ${unit}` : '-'}
       </Text>
     </View>
   );
 
   return (
-    <ScrollView 
-      contentContainerStyle={[
-        styles.container, 
-        photo && { paddingVertical: 15, justifyContent: 'flex-start' }
-      ]}
-    >
+    <ScrollView contentContainerStyle={[styles.container, photo && { paddingVertical: 15, justifyContent: 'flex-start' }]}>
       <Text style={[styles.title, photo && { marginBottom: 10, opacity: 0 }]}>NutriSignal</Text>
       
       <View style={styles.buttonContainer}>
@@ -135,11 +110,7 @@ export default function ScanScreen() {
 
               {result.nutrition && (
                 <View style={styles.nutrientContainer}>
-                  <TouchableOpacity 
-                    style={styles.accordionHeader} 
-                    onPress={() => setExpanded(!expanded)}
-                    activeOpacity={0.7}
-                  >
+                  <TouchableOpacity style={styles.accordionHeader} onPress={() => setExpanded(!expanded)} activeOpacity={0.7}>
                     <Text style={styles.nutrientHeader}>Nutrition Facts (per 100g)</Text>
                     <Text style={styles.arrow}>{expanded ? "▲" : "▼"}</Text>
                   </TouchableOpacity>
@@ -159,12 +130,7 @@ export default function ScanScreen() {
                 </View>
               )}
 
-              {/* Save button */}
-              <TouchableOpacity 
-                style={[styles.saveButton, saving && styles.saveButtonDisabled]} 
-                onPress={saveScanResult}
-                disabled={saving}
-              >
+              <TouchableOpacity style={[styles.saveButton, saving && styles.saveButtonDisabled]} onPress={saveScanResult} disabled={saving}>
                 {saving ? (
                   <ActivityIndicator color="#fff" />
                 ) : (

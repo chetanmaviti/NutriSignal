@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, createUserProfile, saveFoodScan, getScanStats, getFoodScans } from '../lib/supabase';
 
 const AuthContext = createContext<any>(null);
 
@@ -8,12 +8,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: any) => {
       setUser(session?.user || null);
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } }: any = supabase.auth.onAuthStateChange((_event: any, session: any) => {
       setUser(session?.user || null);
     });
 
@@ -26,16 +26,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
+    
+    // Create user profile after successful signup
+    if (data.user) {
+      try {
+        await createUserProfile(data.user.id, email);
+      } catch (profileError: any) {
+        // Silently fail - user can still sign in, profile might already exist
+        console.warn('Profile creation note:', profileError.message);
+      }
+    }
   };
 
   const signOut = async () => {
     await supabase.auth.signOut();
   };
 
+  const recordScan = async (foodLabel: string, signal: string, score: number, nutrition: any) => {
+    if (!user) throw new Error('User not authenticated');
+    await saveFoodScan(user.id, foodLabel, signal, score, nutrition);
+  };
+
+  const fetchScanStats = async () => {
+    if (!user) return null;
+    return await getScanStats(user.id);
+  };
+
+  const fetchFoodScans = async () => {
+    if (!user) return [];
+    return await getFoodScans(user.id);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      loading, 
+      signIn, 
+      signUp, 
+      signOut,
+      recordScan,
+      fetchScanStats,
+      fetchFoodScans,
+    }}>
       {children}
     </AuthContext.Provider>
   );

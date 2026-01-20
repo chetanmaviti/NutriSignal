@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { View, Button, Image, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Button, Image, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import axios from 'axios';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { useAuth } from '../context/AuthContext';
 
 export default function ScanScreen() {
   const [photo, setPhoto] = useState<any>(null);
   const [result, setResult] = useState<any>(null);
   const [expanded, setExpanded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const { recordScan } = useAuth();
 
   // --- Take photo using device camera
   const takePhoto = async () => {
@@ -53,6 +56,33 @@ export default function ScanScreen() {
     }
   };
 
+  // --- Save scan result to Supabase
+  const saveScanResult = async () => {
+    if (!result || result.error) {
+      Alert.alert('Error', 'Cannot save invalid result');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await recordScan(
+        result.label,
+        result.signal,
+        result.score,
+        result.nutrition
+      );
+      Alert.alert('Success', 'Scan saved to your history!');
+      // Reset after successful save
+      setPhoto(null);
+      setResult(null);
+    } catch (err) {
+      console.error('Error saving scan:', err);
+      Alert.alert('Error', 'Failed to save scan. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const renderNutrient = (label: string, value: any, unit: string) => (
     <View style={styles.nutrientRow} key={label}>
       <Text style={styles.nutrientLabel}>{label}</Text>
@@ -74,15 +104,15 @@ export default function ScanScreen() {
       <Text style={[styles.title, photo && { marginBottom: 10, opacity: 0 }]}>NutriSignal</Text>
       
       <View style={styles.buttonContainer}>
-        <Button title="📸 Take Photo" onPress={takePhoto} />
+        <Button title="📸 Take Photo" onPress={takePhoto} disabled={saving} />
         <View style={{ height: photo ? 5 : 10 }} />
-        <Button title="🖼️ Choose from Gallery" onPress={chooseFromLibrary} />
+        <Button title="🖼️ Choose from Gallery" onPress={chooseFromLibrary} disabled={saving} />
       </View>
 
       {photo && <Image source={{ uri: photo.uri }} style={styles.image} />}
       
       <View style={{ marginVertical: photo ? 10 : 20 }}>
-        <Button title="Classify" onPress={classifyPhoto} />
+        <Button title="Classify" onPress={classifyPhoto} disabled={saving} />
       </View>
 
       {result && (
@@ -128,6 +158,19 @@ export default function ScanScreen() {
                   )}
                 </View>
               )}
+
+              {/* Save button */}
+              <TouchableOpacity 
+                style={[styles.saveButton, saving && styles.saveButtonDisabled]} 
+                onPress={saveScanResult}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.saveButtonText}>💾 Save Scan</Text>
+                )}
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -236,5 +279,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#000',
+  },
+  saveButton: {
+    backgroundColor: '#34C759',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 15,
+    marginHorizontal: 20,
+    marginBottom: 20,
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

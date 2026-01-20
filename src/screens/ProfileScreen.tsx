@@ -1,10 +1,30 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 
 export default function ProfileScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, fetchScanStats } = useAuth();
+  const [stats, setStats] = useState({ total: 0, green: 0, yellow: 0, red: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadStats();
+  }, [user]);
+
+  const loadStats = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchScanStats();
+      if (data) {
+        setStats(data);
+      }
+    } catch (err) {
+      console.error('Error loading stats:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -13,24 +33,30 @@ export default function ProfileScreen() {
         <Text style={styles.email}>{user?.email || 'Not logged in'}</Text>
       </View>
 
-      <View style={styles.statsContainer}>
-        <View style={styles.statBox}>
-          <Text style={styles.statNumber}>0</Text>
-          <Text style={styles.statLabel}>Scans</Text>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
         </View>
-        <View style={styles.statBox}>
-          <Text style={styles.statNumber}>0</Text>
-          <Text style={styles.statLabel}>Green</Text>
+      ) : (
+        <View style={styles.statsContainer}>
+          <View style={styles.statBox}>
+            <Text style={styles.statNumber}>{stats.total}</Text>
+            <Text style={styles.statLabel}>Scans</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statNumber}>{stats.green}</Text>
+            <Text style={styles.statLabel}>Green</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statNumber}>{stats.yellow}</Text>
+            <Text style={styles.statLabel}>Yellow</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statNumber}>{stats.red}</Text>
+            <Text style={styles.statLabel}>Red</Text>
+          </View>
         </View>
-        <View style={styles.statBox}>
-          <Text style={styles.statNumber}>0</Text>
-          <Text style={styles.statLabel}>Yellow</Text>
-        </View>
-        <View style={styles.statBox}>
-          <Text style={styles.statNumber}>0</Text>
-          <Text style={styles.statLabel}>Red</Text>
-        </View>
-      </View>
+      )}
 
       <View style={styles.menuContainer}>
         <TouchableOpacity style={styles.menuItem}>
@@ -84,6 +110,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#333',
     marginBottom: 30,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 30,
   },
   statsContainer: {
     flexDirection: 'row',

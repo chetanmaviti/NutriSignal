@@ -38,9 +38,19 @@ export async function createUserProfile(userId: string, email: string, firstName
 export async function getUserProfile(userId: string) {
   const { data, error } = await supabase
     .from('users')
-    .select('first_name, last_name, email')
+    .select('first_name, last_name, email, height_cm, weight_kg, onboarding_completed')
     .eq('id', userId)
     .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateUserProfile(userId: string, updates: any) {
+  const { data, error } = await supabase
+    .from('users')
+    .update(updates)
+    .eq('id', userId)
+    .select();
   if (error) throw error;
   return data;
 }

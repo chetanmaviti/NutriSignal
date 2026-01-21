@@ -1,20 +1,41 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase, createUserProfile, getUserProfile, saveFoodScan, getScanStats, getFoodScans } from '../lib/supabase';
+import { supabase, createUserProfile, getUserProfile, updateUserProfile, saveFoodScan, getScanStats, getFoodScans } from '../lib/supabase';
 
 const AuthContext = createContext<any>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }: any) => {
+    supabase.auth.getSession().then(async ({ data: { session } }: any) => {
       setUser(session?.user || null);
+      if (session?.user) {
+        try {
+          const p = await getUserProfile(session.user.id);
+          setProfile(p);
+        } catch {
+          setProfile(null);
+        }
+      }
       setLoading(false);
     });
 
-    const { data: { subscription } }: any = supabase.auth.onAuthStateChange((_, session: any) => {
+    const { data: { subscription } }: any = supabase.auth.onAuthStateChange(async (_, session: any) => {
       setUser(session?.user || null);
+      if (session?.user) {
+        setLoading(true);
+        try {
+          const p = await getUserProfile(session.user.id);
+          setProfile(p);
+        } catch {
+          setProfile(null);
+        }
+        setLoading(false);
+      } else {
+        setProfile(null);
+      }
     });
 
     return () => subscription?.unsubscribe();
@@ -64,12 +85,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUserProfile = async () => {
     if (!user) return null;
-    return await getUserProfile(user.id);
+    const data = await getUserProfile(user.id);
+    setProfile(data);
+    return data;
+  };
+
+  const updateProfile = async (updates: any) => {
+    if (!user) throw new Error('User not authenticated');
+    await updateUserProfile(user.id, updates);
+    const updated = await getUserProfile(user.id);
+    setProfile(updated);
+    return updated;
   };
 
   return (
     <AuthContext.Provider value={{ 
-      user, 
+      user,
+      profile,
       loading, 
       signIn, 
       signUp, 
@@ -78,6 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       fetchScanStats,
       fetchFoodScans,
       fetchUserProfile,
+      updateUserProfile: updateProfile,
     }}>
       {children}
     </AuthContext.Provider>

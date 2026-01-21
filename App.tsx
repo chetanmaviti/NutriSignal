@@ -6,13 +6,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import LoginScreen from './src/screens/LoginScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
 import ScanScreen from './src/screens/ScanScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
 
 function AppNavigator() {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
 
   if (loading) {
     return (
@@ -24,6 +25,10 @@ function AppNavigator() {
 
   if (!user) {
     return <LoginScreen />;
+  }
+
+  if (!profile?.onboarding_completed) {
+    return <OnboardingScreen />;
   }
 
   return (

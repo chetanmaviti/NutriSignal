@@ -13,14 +13,16 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false,
   },
 });
-export async function createUserProfile(userId: string, email: string) {
+
+export async function createUserProfile(userId: string, email: string, firstName?: string, lastName?: string) {
   try {
     const { data, error } = await supabase
       .from('users')
-      .insert([
-        {
+      .insert([{
           id: userId,
           email: email,
+          first_name: firstName,
+          last_name: lastName,
         },
       ])
       .select();
@@ -33,9 +35,16 @@ export async function createUserProfile(userId: string, email: string) {
   }
 }
 
-// ============================================
-// FOOD SCAN FUNCTIONS
-// ============================================
+export async function getUserProfile(userId: string) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('first_name, last_name, email')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export async function saveFoodScan(
   userId: string,
   foodLabel: string,

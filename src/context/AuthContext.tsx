@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase, createUserProfile, saveFoodScan, getScanStats, getFoodScans } from '../lib/supabase';
+import { supabase, createUserProfile, getUserProfile, saveFoodScan, getScanStats, getFoodScans } from '../lib/supabase';
 
 const AuthContext = createContext<any>(null);
 
@@ -21,29 +21,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    
-    if (data.user) {
-      try {
-        await createUserProfile(data.user.id, email);
-      } catch (err: any) {
-        console.warn('Profile exists or creation skipped');
-      }
-    }
   };
 
-  const signUp = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+  const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          first_name: firstName,
+          last_name: lastName,
+        },
+      },
+    });
     if (error) throw error;
-    
-    if (data.user) {
-      try {
-        await createUserProfile(data.user.id, email);
-      } catch (err: any) {
-        console.warn('Profile creation:', err.message);
-      }
-    }
   };
 
   const signOut = async () => {
@@ -65,6 +58,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return await getFoodScans(user.id);
   };
 
+  const fetchUserProfile = async () => {
+    if (!user) return null;
+    return await getUserProfile(user.id);
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -75,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       recordScan,
       fetchScanStats,
       fetchFoodScans,
+      fetchUserProfile,
     }}>
       {children}
     </AuthContext.Provider>

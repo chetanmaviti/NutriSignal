@@ -4,19 +4,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 
 export default function ProfileScreen() {
-  const { user, signOut, fetchScanStats } = useAuth();
+  const { user, signOut, fetchScanStats, fetchUserProfile } = useAuth();
   const [stats, setStats] = useState({ total: 0, green: 0, yellow: 0, red: 0 });
+  const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadStats();
+    loadData();
   }, [user]);
 
-  const loadStats = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const data = await fetchScanStats();
-      if (data) setStats(data);
+      const [statsData, profileData] = await Promise.all([
+        fetchScanStats(),
+        fetchUserProfile(),
+      ]);
+      if (statsData) setStats(statsData);
+      if (profileData) setProfile(profileData);
     } finally {
       setLoading(false);
     }
@@ -26,7 +31,7 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.avatar}>👤</Text>
-        <Text style={styles.email}>{user?.email || 'Not logged in'}</Text>
+        <Text style={styles.email}>{profile?.first_name || user?.email || 'Not logged in'}</Text>
       </View>
 
       {loading ? (

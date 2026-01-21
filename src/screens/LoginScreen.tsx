@@ -16,6 +16,8 @@ import { useAuth } from '../context/AuthContext';
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
@@ -26,10 +28,15 @@ export default function LoginScreen() {
       return;
     }
 
+    if (isSignUp && (!firstName || !lastName)) {
+      Alert.alert('Error', 'Please enter your first and last name');
+      return;
+    }
+
     try {
       setLoading(true);
       if (isSignUp) {
-        await signUp(email, password);
+        await signUp(email, password, firstName, lastName);
         Alert.alert('Success', 'Account created! Please check your email to confirm.');
       } else {
         await signIn(email, password);
@@ -57,6 +64,28 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.formContainer}>
+          {isSignUp && (
+            <>
+              <TextInput
+                style={styles.input}
+                placeholder="First Name"
+                placeholderTextColor="#999"
+                value={firstName}
+                onChangeText={setFirstName}
+                editable={!loading}
+                autoCapitalize="words"
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Last Name"
+                placeholderTextColor="#999"
+                value={lastName}
+                onChangeText={setLastName}
+                editable={!loading}
+                autoCapitalize="words"
+              />
+            </>
+          )}
           <TextInput
             style={styles.input}
             placeholder="Email"
@@ -98,6 +127,8 @@ export default function LoginScreen() {
               setIsSignUp(!isSignUp);
               setEmail('');
               setPassword('');
+              setFirstName('');
+              setLastName('');
             }}
           >
             <Text style={styles.toggleText}>

@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { View, Button, Image, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Button, Image, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import axios from 'axios';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { useAuth } from '../context/AuthContext';
 
 export default function ScanScreen() {
   const [photo, setPhoto] = useState<any>(null);
   const [result, setResult] = useState<any>(null);
   const [expanded, setExpanded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const { recordScan } = useAuth();
 
-  // --- Take photo using device camera
   const takePhoto = async () => {
     const res = await launchCamera({ mediaType: 'photo', quality: 0.8 });
     if (res.assets && res.assets[0]) {
@@ -18,7 +20,6 @@ export default function ScanScreen() {
     }
   };
 
-  // --- Pick photo from library
   const chooseFromLibrary = async () => {
     const res = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
     if (res.assets && res.assets[0]) {
@@ -28,28 +29,39 @@ export default function ScanScreen() {
     }
   };
 
-  // --- Send image to backend
   const classifyPhoto = async () => {
     if (!photo) return;
 
     const formData = new FormData();
-    formData.append('file', {
-      uri: photo.uri,
-      name: 'photo.jpg',
-      type: 'image/jpeg',
-    });
+    formData.append('file', { uri: photo.uri, name: 'photo.jpg', type: 'image/jpeg' });
 
     try {
-      const response = await axios.post(
-        'http://127.0.0.1:8000/classify',
-        formData,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
-      );
+      const response = await axios.post('http://127.0.0.1:8000/classify', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
       setResult(response.data);
       setExpanded(false);
     } catch (err) {
-      console.error(err);
       setResult({ error: 'Could not connect to backend.' });
+    }
+  };
+
+  const saveScanResult = async () => {
+    if (!result || result.error) {
+      Alert.alert('Error', 'Cannot save invalid result');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await recordScan(result.label, result.signal, result.score, result.nutrition);
+      Alert.alert('Success', 'Scan saved to your history!');
+      setPhoto(null);
+      setResult(null);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to save scan');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -57,32 +69,25 @@ export default function ScanScreen() {
     <View style={styles.nutrientRow} key={label}>
       <Text style={styles.nutrientLabel}>{label}</Text>
       <Text style={styles.nutrientValue}>
-        {value !== undefined && value !== null 
-          ? `${typeof value === 'number' ? value.toFixed(2) : value} ${unit}` 
-          : '-'}
+        {value !== undefined && value !== null ? `${typeof value === 'number' ? value.toFixed(2) : value} ${unit}` : '-'}
       </Text>
     </View>
   );
 
   return (
-    <ScrollView 
-      contentContainerStyle={[
-        styles.container, 
-        photo && { paddingVertical: 15, justifyContent: 'flex-start' }
-      ]}
-    >
+    <ScrollView contentContainerStyle={[styles.container, photo && { paddingVertical: 15, justifyContent: 'flex-start' }]}>
       <Text style={[styles.title, photo && { marginBottom: 10, opacity: 0 }]}>NutriSignal</Text>
       
       <View style={styles.buttonContainer}>
-        <Button title="📸 Take Photo" onPress={takePhoto} />
+        <Button title="📸 Take Photo" onPress={takePhoto} disabled={saving} />
         <View style={{ height: photo ? 5 : 10 }} />
-        <Button title="🖼️ Choose from Gallery" onPress={chooseFromLibrary} />
+        <Button title="🖼️ Choose from Gallery" onPress={chooseFromLibrary} disabled={saving} />
       </View>
 
       {photo && <Image source={{ uri: photo.uri }} style={styles.image} />}
       
       <View style={{ marginVertical: photo ? 10 : 20 }}>
-        <Button title="Classify" onPress={classifyPhoto} />
+        <Button title="Classify" onPress={classifyPhoto} disabled={saving} />
       </View>
 
       {result && (
@@ -105,11 +110,7 @@ export default function ScanScreen() {
 
               {result.nutrition && (
                 <View style={styles.nutrientContainer}>
-                  <TouchableOpacity 
-                    style={styles.accordionHeader} 
-                    onPress={() => setExpanded(!expanded)}
-                    activeOpacity={0.7}
-                  >
+                  <TouchableOpacity style={styles.accordionHeader} onPress={() => setExpanded(!expanded)} activeOpacity={0.7}>
                     <Text style={styles.nutrientHeader}>Nutrition Facts (per 100g)</Text>
                     <Text style={styles.arrow}>{expanded ? "▲" : "▼"}</Text>
                   </TouchableOpacity>
@@ -128,6 +129,14 @@ export default function ScanScreen() {
                   )}
                 </View>
               )}
+
+              <TouchableOpacity style={[styles.saveButton, saving && styles.saveButtonDisabled]} onPress={saveScanResult} disabled={saving}>
+                {saving ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.saveButtonText}>💾 Save Scan</Text>
+                )}
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -236,5 +245,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#000',
+  },
+  saveButton: {
+    backgroundColor: '#34C759',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 15,
+    marginHorizontal: 20,
+    marginBottom: 20,
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

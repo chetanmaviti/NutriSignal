@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,17 @@ export default function LoginScreen() {
   const [lastName, setLastName] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const [localSuccessMessage, setLocalSuccessMessage] = useState<string | null>(null);
+  const { signIn, signUp, authMessage, clearAuthMessage } = useAuth();
+
+  useEffect(() => {
+    if (!authMessage) return;
+
+    setIsSignUp(false);
+    setPassword('');
+    setLocalSuccessMessage(authMessage);
+    clearAuthMessage();
+  }, [authMessage, clearAuthMessage]);
 
   const handleAuth = async () => {
     if (!email || !password) {
@@ -37,7 +47,12 @@ export default function LoginScreen() {
       setLoading(true);
       if (isSignUp) {
         await signUp(email, password, firstName, lastName);
-        Alert.alert('Success', 'Account created! Please check your email to confirm.');
+        setFirstName('');
+        setLastName('');
+        setEmail('');
+        setPassword('');
+        setIsSignUp(false);
+        setLocalSuccessMessage('Check your email to confirm.');
       } else {
         await signIn(email, password);
       }
@@ -64,6 +79,12 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.formContainer}>
+          {localSuccessMessage ? (
+            <View style={styles.successBanner}>
+              <Text style={styles.successText}>{localSuccessMessage}</Text>
+            </View>
+          ) : null}
+
           {isSignUp && (
             <>
               <TextInput
@@ -125,6 +146,7 @@ export default function LoginScreen() {
             disabled={loading}
             onPress={() => {
               setIsSignUp(!isSignUp);
+              setLocalSuccessMessage(null);
               setEmail('');
               setPassword('');
               setFirstName('');
@@ -209,5 +231,19 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     textAlign: 'center',
     fontSize: 14,
+  },
+  successBanner: {
+    backgroundColor: '#E8F5E9',
+    borderWidth: 1,
+    borderColor: '#A5D6A7',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  successText: {
+    color: '#1B5E20',
+    fontSize: 14,
+    textAlign: 'center',
+    fontWeight: '500',
   },
 });

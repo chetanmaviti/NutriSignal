@@ -1,12 +1,22 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Linking } from 'react-native';
+import type { EmailOtpType } from '@supabase/supabase-js';
 import { supabase, createUserProfile, getUserProfile, updateUserProfile, saveFoodScan, getScanStats, getFoodScans } from '../lib/supabase';
 
 const AuthContext = createContext<any>(null);
+const EMAIL_CONFIRMATION_REDIRECT_URL = 'nutrisignal://auth/callback';
+
+const getQueryParam = (url: string, key: string) => {
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = url.match(new RegExp(`[?&]${escapedKey}=([^&#]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -18,6 +28,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         console.error('Failed to load user profile:', error);
         if (isMounted) setProfile(null);
+      }
+    };
+
+    const refreshSessionState = async () => {
+      const { data: { session } }: any = await supabase.auth.getSession();
+      if (!isMounted) return;
+
+      setUser(session?.user || null);
+
+      if (session?.user) {
+        loadProfile(session.user.id);
+      } else {
+        setProfile(null);
+      }
+    };
+
+    const handleAuthDeepLink = async (url: string) => {
+      try {
+        const tokenHash = getQueryParam(url, 'token_hash');
+        const type = getQueryParam(url, 'type') as EmailOtpType | null;
+
+        if (!tokenHash || !type) return;
+
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type,
+        });
+
+        if (error) {
+          console.error('Email confirmation failed:', error);
+          return;
+        }
+
+        if (!isMounted) return;
+        setAuthMessage('Email confirmed — you’re all set.');
+        await refreshSessionState();
+      } catch (error) {
+        console.error('Failed to process auth deep link:', error);
       }
     };
 
@@ -46,6 +94,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initializeAuth();
 
+    const processInitialUrl = async () => {
+      const initialUrl = await Linking.getInitialURL();
+      if (initialUrl) {
+        await handleAuthDeepLink(initialUrl);
+      }
+    };
+
+    processInitialUrl();
+
+    const linkingSubscription = Linking.addEventListener('url', ({ url }) => {
+      handleAuthDeepLink(url);
+    });
+
     const { data: { subscription } }: any = supabase.auth.onAuthStateChange(async (_, session: any) => {
       if (!isMounted) return;
 
@@ -61,6 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       isMounted = false;
+      linkingSubscription.remove();
       subscription?.unsubscribe();
     };
   }, []);
@@ -75,6 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password,
       options: {
+        emailRedirectTo: EMAIL_CONFIRMATION_REDIRECT_URL,
         data: {
           first_name: firstName,
           last_name: lastName,
@@ -90,6 +153,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+  };
+
+  const clearAuthMessage = () => {
+    setAuthMessage(null);
   };
 
   const recordScan = async (foodLabel: string, signal: string, score: number, nutrition: any) => {
@@ -126,10 +193,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider value={{ 
       user,
       profile,
+      authMessage,
       loading, 
       signIn, 
       signUp, 
       signOut,
+      clearAuthMessage,
       recordScan,
       fetchScanStats,
       fetchFoodScans,

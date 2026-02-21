@@ -9,7 +9,7 @@ LABEL_MAP = {"ear": "sweet corn", "corn": "sweet corn"}
 
 def get_nutrition_from_usda(food_label: str) -> dict | None:
     if not USDA_API_KEY:
-        return None
+        return {"error": "USDA_API_KEY is missing. Add it to backend/.env."}
     
     search_query = LABEL_MAP.get(food_label.lower(), food_label)
     
@@ -81,8 +81,13 @@ def get_nutrition_from_usda(food_label: str) -> dict | None:
                 nutrients["carbohydrates"] = value
         
         return nutrients or None
+    except requests.HTTPError as err:
+        status_code = err.response.status_code if err.response else "unknown"
+        return {"error": f"USDA API request failed with status {status_code}."}
+    except requests.RequestException:
+        return {"error": "Could not reach USDA API."}
     except Exception:
-        return None
+        return {"error": "Unexpected error while fetching USDA nutrition data."}
 
 def get_health_signal(calories: float, sugar: float, fat: float, saturated_fat: float, sodium: float, fiber: float, protein: float, carbohydrates: float) -> dict:
     score = 100
@@ -97,6 +102,9 @@ def lookup_food(food_label: str) -> dict:
     nutrition = get_nutrition_from_usda(food_label)
     if not nutrition:
         return {"nutrition": None, "signal": None, "score": None, "error": "Food not found"}
+
+    if isinstance(nutrition, dict) and nutrition.get("error"):
+        return {"nutrition": None, "signal": None, "score": None, "error": nutrition["error"]}
     
     health = get_health_signal(
         nutrition.get("calories", 0.0),

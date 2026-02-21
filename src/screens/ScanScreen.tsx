@@ -3,13 +3,21 @@ import { View, Button, Image, Text, StyleSheet, ScrollView, TouchableOpacity, Ac
 import axios from 'axios';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { useAuth } from '../context/AuthContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ScanScreen() {
   const [photo, setPhoto] = useState<any>(null);
   const [result, setResult] = useState<any>(null);
   const [expanded, setExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [classifying, setClassifying] = useState(false);
   const { recordScan } = useAuth();
+
+  const resetScanState = () => {
+    setPhoto(null);
+    setResult(null);
+    setExpanded(false);
+  };
 
   const takePhoto = async () => {
     const res = await launchCamera({ mediaType: 'photo', quality: 0.8 });
@@ -36,6 +44,7 @@ export default function ScanScreen() {
     formData.append('file', { uri: photo.uri, name: 'photo.jpg', type: 'image/jpeg' });
 
     try {
+      setClassifying(true);
       const response = await axios.post('http://127.0.0.1:8000/classify', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -43,6 +52,8 @@ export default function ScanScreen() {
       setExpanded(false);
     } catch (err) {
       setResult({ error: 'Could not connect to backend.' });
+    } finally {
+      setClassifying(false);
     }
   };
 
@@ -56,8 +67,6 @@ export default function ScanScreen() {
       setSaving(true);
       await recordScan(result.label, result.signal, result.score, result.nutrition);
       Alert.alert('Success', 'Scan saved to your history!');
-      setPhoto(null);
-      setResult(null);
     } catch (err) {
       Alert.alert('Error', 'Failed to save scan');
     } finally {
@@ -75,77 +84,104 @@ export default function ScanScreen() {
   );
 
   return (
-    <ScrollView contentContainerStyle={[styles.container, photo && { paddingVertical: 15, justifyContent: 'flex-start' }]}>
-      <Text style={[styles.title, photo && { marginBottom: 10, opacity: 0 }]}>NutriSignal</Text>
-      
-      <View style={styles.buttonContainer}>
-        <Button title="📸 Take Photo" onPress={takePhoto} disabled={saving} />
-        <View style={{ height: photo ? 5 : 10 }} />
-        <Button title="🖼️ Choose from Gallery" onPress={chooseFromLibrary} disabled={saving} />
-      </View>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ScrollView contentContainerStyle={[styles.container, photo && { paddingTop: 12, paddingBottom: 15, justifyContent: 'flex-start' }]}>
+        {result ? (
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={resetScanState}
+            disabled={saving}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.backButtonText}>← Back</Text>
+          </TouchableOpacity>
+        ) : null}
 
-      {photo && <Image source={{ uri: photo.uri }} style={styles.image} />}
+        {!photo ? <Text style={styles.title}>NutriSignal</Text> : null}
       
-      <View style={{ marginVertical: photo ? 10 : 20 }}>
-        <Button title="Classify" onPress={classifyPhoto} disabled={saving} />
-      </View>
+        {!result ? (
+          <View style={styles.buttonContainer}>
+            <Button title="📸 Take Photo" onPress={takePhoto} disabled={saving} />
+            <View style={{ height: photo ? 5 : 10 }} />
+            <Button title="🖼️ Choose from Gallery" onPress={chooseFromLibrary} disabled={saving} />
+          </View>
+        ) : null}
 
-      {result && (
-        <View style={styles.resultContainer}>
-          {result.error ? (
-            <Text style={styles.errorText}>{result.error}</Text>
-          ) : (
-            <View>
-              <View style={styles.resultContent}>
-                <View style={styles.circleColumn}>
-                  <Text style={styles.bigCircle}>
-                    {result.signal === "Green" ? "🟢" : result.signal === "Yellow" ? "🟡" : "🔴"}
-                  </Text>
-                </View>
-                <View style={styles.infoColumn}>
-                  <Text style={styles.label}>{result.label}</Text>
-                  <Text style={styles.score}>{result.score?.toFixed(1) ?? 0} / 100</Text>
-                </View>
+        {photo && <Image source={{ uri: photo.uri }} style={styles.image} />}
+      
+        {!result ? (
+          <View style={{ marginVertical: photo ? 10 : 20 }}>
+            <Button title="Classify" onPress={classifyPhoto} disabled={saving || classifying || !photo} />
+            {classifying ? (
+              <View style={styles.classifyingContainer}>
+                <ActivityIndicator size="large" color="#007AFF" />
+                <Text style={styles.classifyingText}>Processing...</Text>
               </View>
+            ) : null}
+          </View>
+        ) : null}
 
-              {result.nutrition && (
-                <View style={styles.nutrientContainer}>
-                  <TouchableOpacity style={styles.accordionHeader} onPress={() => setExpanded(!expanded)} activeOpacity={0.7}>
-                    <Text style={styles.nutrientHeader}>Nutrition Facts (per 100g)</Text>
-                    <Text style={styles.arrow}>{expanded ? "▲" : "▼"}</Text>
-                  </TouchableOpacity>
-
-                  {expanded && (
-                    <View style={{ marginTop: 5 }}>
-                      {renderNutrient("Calories", result.nutrition.calories, "kcal")}
-                      {renderNutrient("Protein", result.nutrition.protein, "g")}
-                      {renderNutrient("Carbs", result.nutrition.carbohydrates, "g")} 
-                      {renderNutrient("Total Fat", result.nutrition.fat, "g")}
-                      {renderNutrient("Sat. Fat", result.nutrition.saturated_fat, "g")}
-                      {renderNutrient("Sugars", result.nutrition.sugar, "g")}
-                      {renderNutrient("Fiber", result.nutrition.fiber, "g")}
-                      {renderNutrient("Sodium", result.nutrition.sodium, "mg")}
-                    </View>
-                  )}
+        {result && (
+          <View style={styles.resultContainer}>
+            {result.error ? (
+              <Text style={styles.errorText}>{result.error}</Text>
+            ) : (
+              <View>
+                <View style={styles.resultContent}>
+                  <View style={styles.circleColumn}>
+                    <Text style={styles.bigCircle}>
+                      {result.signal === "Green" ? "🟢" : result.signal === "Yellow" ? "🟡" : "🔴"}
+                    </Text>
+                  </View>
+                  <View style={styles.infoColumn}>
+                    <Text style={styles.label}>{result.label}</Text>
+                    <Text style={styles.score}>{result.score?.toFixed(1) ?? 0} / 100</Text>
+                  </View>
                 </View>
-              )}
 
-              <TouchableOpacity style={[styles.saveButton, saving && styles.saveButtonDisabled]} onPress={saveScanResult} disabled={saving}>
-                {saving ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.saveButtonText}>💾 Save Scan</Text>
+                <TouchableOpacity style={[styles.saveButton, saving && styles.saveButtonDisabled]} onPress={saveScanResult} disabled={saving}>
+                  {saving ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>💾 Save Scan</Text>
+                  )}
+                </TouchableOpacity>
+
+                {result.nutrition && (
+                  <View style={styles.nutrientContainer}>
+                    <TouchableOpacity style={styles.accordionHeader} onPress={() => setExpanded(!expanded)} activeOpacity={0.7}>
+                      <Text style={styles.nutrientHeader}>Nutrition Facts (per 100g)</Text>
+                      <Text style={styles.arrow}>{expanded ? "▲" : "▼"}</Text>
+                    </TouchableOpacity>
+
+                    {expanded && (
+                      <View style={{ marginTop: 5 }}>
+                        {renderNutrient("Calories", result.nutrition.calories, "kcal")}
+                        {renderNutrient("Protein", result.nutrition.protein, "g")}
+                        {renderNutrient("Carbs", result.nutrition.carbohydrates, "g")} 
+                        {renderNutrient("Total Fat", result.nutrition.fat, "g")}
+                        {renderNutrient("Sat. Fat", result.nutrition.saturated_fat, "g")}
+                        {renderNutrient("Sugars", result.nutrition.sugar, "g")}
+                        {renderNutrient("Fiber", result.nutrition.fiber, "g")}
+                        {renderNutrient("Sodium", result.nutrition.sodium, "mg")}
+                      </View>
+                    )}
+                  </View>
                 )}
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      )}
-    </ScrollView>
+              </View>
+            )}
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
   container: {
     flexGrow: 1,
     alignItems: 'center',
@@ -161,9 +197,22 @@ const styles = StyleSheet.create({
   buttonContainer: {
     width: '80%',
   },
+  backButton: {
+    alignSelf: 'flex-start',
+    marginLeft: 14,
+    marginTop: -4,
+    marginBottom: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  backButtonText: {
+    fontSize: 18,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
   image: {
-    width: '90%',
-    height: 425,
+    width: '88%',
+    height: 360,
     marginVertical: 10,
     borderRadius: 15,
     resizeMode: 'cover',
@@ -262,5 +311,16 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  classifyingContainer: {
+    marginTop: 24,
+    minHeight: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  classifyingText: {
+    marginTop: 8,
+    color: '#666',
+    fontSize: 14,
   },
 });

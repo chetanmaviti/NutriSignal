@@ -11,6 +11,10 @@ backend/venv/
 backend/.env
 .env.local
 
+# Python cache
+__pycache__/
+*.pyc
+
 # Build artifacts
 ios/Pods/
 android/app/build/

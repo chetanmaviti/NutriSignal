@@ -65,7 +65,15 @@ export default function ScanScreen() {
 
     try {
       setSaving(true);
-      await recordScan(result.label, result.signal, result.score, result.nutrition);
+      await recordScan(result.label, result.signal, result.score, result.nutrition, {
+        scoring_system: result.scoring_system,
+        scoring_version: result.scoring_version,
+        fallback_used: result.fallback_used,
+        foodcompass_food_code: result.foodcompass_food_code,
+        foodcompass_missing_domains: result.foodcompass_missing_domains,
+        foodcompass_missing_reason: result.foodcompass_missing_reason,
+        scoring_metadata: result.scoring_metadata,
+      });
       Alert.alert('Success', 'Scan saved to your history!');
     } catch (err) {
       Alert.alert('Error', 'Failed to save scan');
@@ -82,6 +90,9 @@ export default function ScanScreen() {
       </Text>
     </View>
   );
+
+  const scoringSystemLabel = result?.scoring_system || 'USDA API';
+  const scoringVersionLabel = scoringSystemLabel === 'Food Compass' ? (result?.scoring_version || '2.0') : null;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -166,6 +177,18 @@ export default function ScanScreen() {
                         {renderNutrient("Sodium", result.nutrition.sodium, "mg")}
                       </View>
                     )}
+
+                    <View style={styles.modelMetaBlock}>
+                      <Text style={styles.modelMetaTitle}>Model used: {scoringSystemLabel}</Text>
+                      {scoringVersionLabel ? <Text style={styles.modelMetaText}>Version: {scoringVersionLabel}</Text> : null}
+                    </View>
+                  </View>
+                )}
+
+                {!result.nutrition && (
+                  <View style={styles.modelMetaOnlyBlock}>
+                    <Text style={styles.modelMetaTitle}>Model used: {scoringSystemLabel}</Text>
+                    {scoringVersionLabel ? <Text style={styles.modelMetaText}>Version: {scoringVersionLabel}</Text> : null}
                   </View>
                 )}
               </View>
@@ -322,5 +345,30 @@ const styles = StyleSheet.create({
     marginTop: 8,
     color: '#666',
     fontSize: 14,
+  },
+  modelMetaBlock: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#ececec',
+  },
+  modelMetaOnlyBlock: {
+    marginHorizontal: 20,
+    marginBottom: 12,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#eee',
+    padding: 12,
+  },
+  modelMetaTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#222',
+  },
+  modelMetaText: {
+    marginTop: 4,
+    fontSize: 13,
+    color: '#555',
   },
 });

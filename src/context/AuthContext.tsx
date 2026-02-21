@@ -159,9 +159,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthMessage(null);
   };
 
-  const recordScan = async (foodLabel: string, signal: string, score: number, nutrition: any) => {
+  const recordScan = async (
+    foodLabel: string,
+    signal: string,
+    score: number,
+    nutrition: any,
+    scoringMeta?: {
+      scoring_system?: string;
+      scoring_version?: string | null;
+      fallback_used?: boolean;
+      foodcompass_food_code?: number | null;
+      foodcompass_missing_domains?: string[] | null;
+      foodcompass_missing_reason?: string | null;
+      scoring_metadata?: Record<string, any>;
+    }
+  ) => {
     if (!user) throw new Error('User not authenticated');
-    await saveFoodScan(user.id, foodLabel, signal, score, nutrition);
+    await saveFoodScan(user.id, foodLabel, signal, score, nutrition, scoringMeta);
   };
 
   const fetchScanStats = async () => {

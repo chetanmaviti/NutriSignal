@@ -67,7 +67,16 @@ export async function saveFoodScan(
   foodLabel: string,
   signal: string,
   score: number,
-  nutrition: any
+  nutrition: any,
+  scoringMeta?: {
+    scoring_system?: string;
+    scoring_version?: string | null;
+    fallback_used?: boolean;
+    foodcompass_food_code?: number | null;
+    foodcompass_missing_domains?: string[] | null;
+    foodcompass_missing_reason?: string | null;
+    scoring_metadata?: Record<string, any>;
+  }
 ) {
   try {
     const { data, error } = await supabase
@@ -79,6 +88,14 @@ export async function saveFoodScan(
           signal: signal,
           score: score,
           nutrition: nutrition,
+          scoring_system: scoringMeta?.scoring_system ?? 'USDA API',
+          scoring_version: scoringMeta?.scoring_version ?? null,
+          fallback_used: scoringMeta?.fallback_used ?? true,
+          foodcompass_food_code: scoringMeta?.foodcompass_food_code ?? null,
+          foodcompass_missing_domains: scoringMeta?.foodcompass_missing_domains ?? null,
+          foodcompass_missing_reason: scoringMeta?.foodcompass_missing_reason ?? null,
+          scoring_metadata: scoringMeta?.scoring_metadata ?? {},
+          scoring_logged_at: new Date().toISOString(),
         },
       ])
       .select();

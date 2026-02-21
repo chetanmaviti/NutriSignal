@@ -9,36 +9,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }: any) => {
-      setUser(session?.user || null);
-      if (session?.user) {
-        try {
-          const p = await getUserProfile(session.user.id);
-          setProfile(p);
-        } catch {
+    let isMounted = true;
+
+    const loadProfile = async (userId: string) => {
+      try {
+        const p = await getUserProfile(userId);
+        if (isMounted) setProfile(p);
+      } catch (error) {
+        console.error('Failed to load user profile:', error);
+        if (isMounted) setProfile(null);
+      }
+    };
+
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } }: any = await supabase.auth.getSession();
+        if (!isMounted) return;
+
+        setUser(session?.user || null);
+        setLoading(false);
+
+        if (session?.user) {
+          loadProfile(session.user.id);
+        } else {
           setProfile(null);
         }
+      } catch (error) {
+        console.error('Failed to restore auth session:', error);
+        if (isMounted) {
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+        }
       }
-      setLoading(false);
-    });
+    };
+
+    initializeAuth();
 
     const { data: { subscription } }: any = supabase.auth.onAuthStateChange(async (_, session: any) => {
+      if (!isMounted) return;
+
       setUser(session?.user || null);
+
       if (session?.user) {
-        setLoading(true);
-        try {
-          const p = await getUserProfile(session.user.id);
-          setProfile(p);
-        } catch {
-          setProfile(null);
-        }
-        setLoading(false);
+        loadProfile(session.user.id);
       } else {
         setProfile(null);
+        setLoading(false);
       }
     });
 
-    return () => subscription?.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {

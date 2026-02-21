@@ -35,12 +35,19 @@ export async function createUserProfile(userId: string, email: string, firstName
   }
 }
 
-export async function getUserProfile(userId: string) {
-  const { data, error } = await supabase
+export async function getUserProfile(userId: string, timeoutMs: number = 10000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  const query = supabase
     .from('users')
     .select('first_name, last_name, email, height_cm, weight_kg, onboarding_completed')
     .eq('id', userId)
-    .maybeSingle();
+    .abortSignal(controller.signal);
+
+  const { data, error } = await query.maybeSingle();
+  clearTimeout(timeout);
+
   if (error) throw error;
   return data;
 }

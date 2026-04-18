@@ -79,6 +79,7 @@ export async function saveFoodScan(
   }
 ) {
   try {
+    const loggedAt = new Date().toISOString();
     const { data, error } = await supabase
       .from('food_scans')
       .insert([
@@ -95,7 +96,8 @@ export async function saveFoodScan(
           foodcompass_missing_domains: scoringMeta?.foodcompass_missing_domains ?? null,
           foodcompass_missing_reason: scoringMeta?.foodcompass_missing_reason ?? null,
           scoring_metadata: scoringMeta?.scoring_metadata ?? {},
-          scoring_logged_at: new Date().toISOString(),
+          timestamp: loggedAt,
+          scoring_logged_at: loggedAt,
         },
       ])
       .select();
@@ -113,7 +115,7 @@ export async function getFoodScans(userId: string) {
     .from('food_scans')
     .select('*')
     .eq('user_id', userId)
-    .order('timestamp', { ascending: false });
+    .order('scoring_logged_at', { ascending: false });
   if (error) throw error;
   return data || [];
 }

@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
+import ScanHistoryScreen from './ScanHistoryScreen';
 
 export default function ProfileScreen() {
   const { user, signOut, fetchScanStats, fetchUserProfile } = useAuth();
   const [stats, setStats] = useState({ total: 0, green: 0, yellow: 0, red: 0 });
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -26,6 +28,10 @@ export default function ProfileScreen() {
       setLoading(false);
     }
   };
+
+  if (showHistory) {
+    return <ScanHistoryScreen onBack={() => setShowHistory(false)} />;
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -60,7 +66,7 @@ export default function ProfileScreen() {
       )}
 
       <View style={styles.menuContainer}>
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => setShowHistory(true)}>
           <Text style={styles.menuIcon}>📊</Text>
           <Text style={styles.menuText}>Scan History</Text>
           <Text style={styles.menuArrow}>›</Text>

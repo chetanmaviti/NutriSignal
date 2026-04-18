@@ -14,6 +14,10 @@ SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 SCORING_SYSTEM_FOOD_COMPASS = "Food Compass"
 SCORING_VERSION_FOOD_COMPASS = "2.0"
 SCORING_SYSTEM_USDA = "USDA API"
+NUTRITION_SOURCE_FNDDS = "USDA FNDDS 2021-2023"
+NUTRITION_SOURCE_USDA = "USDA API"
+FOODCOMPASS_TABLE = "foodcompass"
+FNDDS_TABLE = "fndds_foods"
 
 FOOD_COMPASS_REQUIRED_DOMAINS = [
     "updated_fcs",
@@ -25,6 +29,25 @@ FOOD_COMPASS_REQUIRED_DOMAINS = [
 logger = logging.getLogger("nutrisignal.lookup")
 
 LABEL_MAP = {"ear": "sweet corn", "corn": "sweet corn"}
+FNDDS_NUTRITION_FIELD_MAP = {
+    "calories": "energy_kcal",
+    "protein": "protein_g",
+    "carbohydrates": "carbohydrate_g",
+    "sugar": "sugars_total_g",
+    "fiber": "fiber_total_dietary_g",
+    "fat": "total_fat_g",
+    "saturated_fat": "fatty_acids_total_saturated_g",
+    "sodium": "sodium_mg",
+}
+FNDDS_SELECT_COLUMNS = ",".join(
+    [
+        "food_code",
+        "main_food_description",
+        "wweia_category_number",
+        "wweia_category_description",
+        *FNDDS_NUTRITION_FIELD_MAP.values(),
+    ]
+)
 
 
 def _normalize_food_label(food_label: str) -> str:
@@ -75,7 +98,7 @@ def _find_foodcompass_row(food_label: str) -> dict | None:
     try:
         for pattern in search_patterns:
             query = (
-                client.table("foodcompass")
+                client.table(FOODCOMPASS_TABLE)
                 .select(
                     "food_code,food_description,updated_fcs,health_star_rating,nutri_score,nova_classification"
                 )
@@ -104,6 +127,59 @@ def _missing_foodcompass_domains(row: dict | None) -> list[str]:
     return [domain for domain in FOOD_COMPASS_REQUIRED_DOMAINS if row.get(domain) is None]
 
 
+def _table_count(client: Client, table_name: str, select_column: str) -> int | None:
+    response = client.table(table_name).select(select_column, count="exact").limit(1).execute()
+    return response.count
+
+
+def _get_fndds_row(food_code: int | None) -> dict | None:
+    if food_code is None:
+        return None
+
+    client = _get_supabase_client()
+    if not client:
+        return None
+
+    try:
+        response = (
+            client.table(FNDDS_TABLE)
+            .select(FNDDS_SELECT_COLUMNS)
+            .eq("food_code", food_code)
+            .limit(1)
+            .execute()
+        )
+        data = response.data or []
+        if isinstance(data, list):
+            return data[0] if data else None
+        return data
+    except Exception:
+        logger.exception("FNDDS query failed for food_code '%s'.", food_code)
+        return None
+
+
+def _normalize_numeric_value(value):
+    if value is None:
+        return None
+
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return value
+
+
+def _nutrition_from_fndds_row(row: dict | None) -> dict | None:
+    if not row:
+        return None
+
+    nutrition = {}
+    for app_field, column_name in FNDDS_NUTRITION_FIELD_MAP.items():
+        value = _normalize_numeric_value(row.get(column_name))
+        if value is not None:
+            nutrition[app_field] = value
+
+    return nutrition or None
+
+
 def get_scoring_health() -> dict:
     key_present = bool(SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY)
     env_ok = bool(SUPABASE_URL and key_present)
@@ -115,6 +191,8 @@ def get_scoring_health() -> dict:
         "supabase_key_configured": key_present,
         "foodcompass_table_reachable": False,
         "foodcompass_row_count": None,
+        "fndds_table_reachable": False,
+        "fndds_row_count": None,
         "status": "degraded",
     }
 
@@ -126,14 +204,22 @@ def get_scoring_health() -> dict:
         return health
 
     try:
-        response = client.table("foodcompass").select("food_code", count="exact").limit(1).execute()
+        health["foodcompass_row_count"] = _table_count(client, FOODCOMPASS_TABLE, "food_code")
         health["foodcompass_table_reachable"] = True
-        health["foodcompass_row_count"] = response.count
-        health["status"] = "ok"
     except Exception:
         logger.exception("Health check failed when querying foodcompass table.")
 
+    try:
+        health["fndds_row_count"] = _table_count(client, FNDDS_TABLE, "food_code")
+        health["fndds_table_reachable"] = True
+    except Exception:
+        logger.exception("Health check failed when querying fndds table.")
+
+    if health["foodcompass_table_reachable"] and health["fndds_table_reachable"]:
+        health["status"] = "ok"
+
     return health
+
 
 def get_nutrition_from_usda(food_label: str) -> dict | None:
     if not USDA_API_KEY:
@@ -217,6 +303,48 @@ def get_nutrition_from_usda(food_label: str) -> dict | None:
     except Exception:
         return {"error": "Unexpected error while fetching USDA nutrition data."}
 
+
+def _resolve_foodcompass_nutrition(food_label: str, foodcompass_row: dict) -> tuple[dict | None, dict]:
+    fndds_row = _get_fndds_row(foodcompass_row.get("food_code"))
+    nutrition = _nutrition_from_fndds_row(fndds_row)
+
+    metadata = {
+        "nutrition_source": NUTRITION_SOURCE_FNDDS if nutrition else None,
+        "nutrition_fallback_used": False,
+        "fndds_food_code": fndds_row.get("food_code") if fndds_row else None,
+        "fndds_main_food_description": fndds_row.get("main_food_description") if fndds_row else None,
+    }
+
+    if nutrition:
+        return nutrition, metadata
+
+    logger.warning(
+        "FNDDS nutrition missing for '%s' (food_code=%s); falling back to USDA API nutrition.",
+        food_label,
+        foodcompass_row.get("food_code"),
+    )
+
+    usda_nutrition = get_nutrition_from_usda(food_label)
+    if isinstance(usda_nutrition, dict) and usda_nutrition.get("error"):
+        logger.warning(
+            "USDA nutrition fetch failed for '%s' after missing FNDDS row: %s",
+            food_label,
+            usda_nutrition.get("error"),
+        )
+        return None, {
+            **metadata,
+            "nutrition_source": None,
+            "nutrition_fallback_used": True,
+            "nutrition_error": usda_nutrition.get("error"),
+        }
+
+    return usda_nutrition, {
+        **metadata,
+        "nutrition_source": NUTRITION_SOURCE_USDA,
+        "nutrition_fallback_used": True,
+    }
+
+
 def get_health_signal(calories: float, sugar: float, fat: float, saturated_fat: float, sodium: float, fiber: float, protein: float, carbohydrates: float) -> dict:
     score = 100
     score -= sugar * 1.6 + fat * 0.2 + saturated_fat * 4.0 + sodium * 0.10 + calories * 0.05 + carbohydrates * 0.15
@@ -230,14 +358,7 @@ def lookup_food(food_label: str) -> dict:
     foodcompass_row = _find_foodcompass_row(food_label)
 
     if foodcompass_row and foodcompass_row.get("updated_fcs") is not None:
-        nutrition = get_nutrition_from_usda(food_label)
-        if isinstance(nutrition, dict) and nutrition.get("error"):
-            logger.warning(
-                "USDA nutrition fetch failed for '%s' while using Food Compass scoring: %s",
-                food_label,
-                nutrition.get("error"),
-            )
-            nutrition = None
+        nutrition, nutrition_metadata = _resolve_foodcompass_nutrition(food_label, foodcompass_row)
 
         score = float(foodcompass_row["updated_fcs"])
         missing_domains = _missing_foodcompass_domains(foodcompass_row)
@@ -265,6 +386,7 @@ def lookup_food(food_label: str) -> dict:
                 "foodcompass_health_star_rating": foodcompass_row.get("health_star_rating"),
                 "foodcompass_nutri_score": foodcompass_row.get("nutri_score"),
                 "foodcompass_nova_classification": foodcompass_row.get("nova_classification"),
+                **nutrition_metadata,
             },
         }
 
@@ -295,7 +417,9 @@ def lookup_food(food_label: str) -> dict:
             "foodcompass_food_code": foodcompass_row.get("food_code") if foodcompass_row else None,
             "foodcompass_missing_domains": missing_domains,
             "foodcompass_missing_reason": missing_reason,
-            "scoring_metadata": {},
+            "scoring_metadata": {
+                "nutrition_source": NUTRITION_SOURCE_USDA,
+            },
         }
 
     if isinstance(nutrition, dict) and nutrition.get("error"):
@@ -310,7 +434,9 @@ def lookup_food(food_label: str) -> dict:
             "foodcompass_food_code": foodcompass_row.get("food_code") if foodcompass_row else None,
             "foodcompass_missing_domains": missing_domains,
             "foodcompass_missing_reason": missing_reason,
-            "scoring_metadata": {},
+            "scoring_metadata": {
+                "nutrition_source": NUTRITION_SOURCE_USDA,
+            },
         }
 
     health = get_health_signal(
@@ -334,5 +460,7 @@ def lookup_food(food_label: str) -> dict:
         "foodcompass_food_code": foodcompass_row.get("food_code") if foodcompass_row else None,
         "foodcompass_missing_domains": missing_domains,
         "foodcompass_missing_reason": missing_reason,
-        "scoring_metadata": {},
+        "scoring_metadata": {
+            "nutrition_source": NUTRITION_SOURCE_USDA,
+        },
     }

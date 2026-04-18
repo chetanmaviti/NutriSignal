@@ -2,10 +2,11 @@ import requests
 import os
 import logging
 from difflib import SequenceMatcher
+from pathlib import Path
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().with_name(".env"))
 USDA_API_KEY = os.getenv("USDA_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")

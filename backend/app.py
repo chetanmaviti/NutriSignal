@@ -1,10 +1,14 @@
-from fastapi import FastAPI, UploadFile, File
-from pydantic import BaseModel
-from dotenv import load_dotenv
-from classify import classify_food
-from lookup import lookup_food, get_scoring_health
+from pathlib import Path
 
-load_dotenv()
+from dotenv import load_dotenv
+from fastapi import FastAPI, File, UploadFile
+from pydantic import BaseModel
+
+load_dotenv(Path(__file__).resolve().with_name(".env"))
+
+from classify import ClassificationError, classify_food, get_classification_health
+from lookup import get_scoring_health, lookup_food
+
 app = FastAPI()
 
 
@@ -14,7 +18,10 @@ class LabelScoreRequest(BaseModel):
 
 @app.get("/health/scoring")
 def health_scoring():
-    return get_scoring_health()
+    return {
+        **get_scoring_health(),
+        **get_classification_health(),
+    }
 
 
 @app.post("/score-label")
@@ -38,13 +45,47 @@ def score_label(payload: LabelScoreRequest):
 
     return {"label": clean_label, **lookup_food(clean_label)}
 
+
+def _merge_classification_metadata(result: dict, metadata: dict) -> dict:
+    merged = dict(result)
+    merged["scoring_metadata"] = {
+        **(result.get("scoring_metadata") or {}),
+        **metadata,
+    }
+    return merged
+
+
+def _classification_error_response(message: str, metadata: dict | None = None, label: str = "") -> dict:
+    return {
+        "label": label,
+        "nutrition": None,
+        "signal": None,
+        "score": None,
+        "error": message,
+        "scoring_system": "USDA API",
+        "scoring_version": None,
+        "fallback_used": True,
+        "foodcompass_food_code": None,
+        "foodcompass_missing_domains": None,
+        "foodcompass_missing_reason": message,
+        "scoring_metadata": metadata or {},
+    }
+
+
 @app.post("/classify")
 async def classify_image(file: UploadFile = File(...)):
     image_bytes = await file.read()
-    labels = classify_food(image_bytes)
 
-    final_result = None
-    final_label = labels[0].replace("_", " ")
+    try:
+        classification = classify_food(image_bytes)
+    except ClassificationError as err:
+        return _classification_error_response(err.public_message, err.metadata)
+
+    labels = classification["labels"]
+    classification_metadata = classification["metadata"]
+
+    final_result: dict | None = None
+    final_label = labels[0]
     fallback_candidate = None
 
     for raw_label in labels:
@@ -68,4 +109,14 @@ async def classify_image(file: UploadFile = File(...)):
     if not final_result:
         final_result = lookup_food(final_label)
 
-    return {"label": final_label, **final_result}
+    if not final_result:
+        return _classification_error_response(
+            "Image classification failed.",
+            classification_metadata,
+            label=final_label,
+        )
+
+    return {
+        "label": final_label,
+        **_merge_classification_metadata(final_result, classification_metadata),
+    }

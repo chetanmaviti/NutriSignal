@@ -25,9 +25,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const p = await getUserProfile(userId);
         if (isMounted) setProfile(p);
+        return p;
       } catch (error) {
         console.error('Failed to load user profile:', error);
         if (isMounted) setProfile(null);
+        return null;
       }
     };
 
@@ -35,12 +37,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data: { session } }: any = await supabase.auth.getSession();
       if (!isMounted) return;
 
+      setLoading(true);
       setUser(session?.user || null);
 
       if (session?.user) {
-        loadProfile(session.user.id);
+        await loadProfile(session.user.id);
       } else {
         setProfile(null);
+      }
+
+      if (isMounted) {
+        setLoading(false);
       }
     };
 
@@ -74,13 +81,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: { session } }: any = await supabase.auth.getSession();
         if (!isMounted) return;
 
+        setLoading(true);
         setUser(session?.user || null);
-        setLoading(false);
 
         if (session?.user) {
-          loadProfile(session.user.id);
+          await loadProfile(session.user.id);
         } else {
           setProfile(null);
+        }
+
+        if (isMounted) {
+          setLoading(false);
         }
       } catch (error) {
         console.error('Failed to restore auth session:', error);
@@ -110,12 +121,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } }: any = supabase.auth.onAuthStateChange(async (_, session: any) => {
       if (!isMounted) return;
 
+      setLoading(true);
       setUser(session?.user || null);
 
       if (session?.user) {
-        loadProfile(session.user.id);
+        await loadProfile(session.user.id);
       } else {
         setProfile(null);
+      }
+
+      if (isMounted) {
         setLoading(false);
       }
     });
